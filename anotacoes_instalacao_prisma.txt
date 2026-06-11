@@ -1,0 +1,147 @@
+Documentação Instalação Prisma
+
+https://www.prisma.io/docs/prisma-orm/quickstart/mysql
+-> instalar typescript
+npm install typescript tsx @types/node --save-dev
+-> iniciar tsc
+npx tsc --init
+-> instalação de dependências
+npm install prisma @types/node --save-dev
+npm install @prisma/client @prisma/adapter-mariadb dotenv
+-> atualizar o tsconfig.ts para aceitar compatibilidade com ECMASCRIPT
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2023",
+    "strict": true,
+    "esModuleInterop": true,
+    "ignoreDeprecations": "6.0"
+  }
+}
+-> atualizar o packege.json para aceitar modulos
+{
+  "type": "module"
+}
+-> inicializar prisma
+npx prisma
+-> cria o repositório prisma com scheema pré-configurado e conectado com o banco, env com variaveis e o prismaconfig.ts
+npx prisma init --datasource-provider mysql --output ../generated/prisma
+-> configurar prismaconfig.ts
+import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  datasource: {
+    url: env("DATABASE_URL"),
+  },
+});
+-> configurar generator no scheema.prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+-> adicionar variaveis no .env
+DATABASE_URL="mysql://username:password@localhost:3306/mydb"
+DATABASE_USER="username"
+DATABASE_PASSWORD="password"
+DATABASE_NAME="mydb"
+DATABASE_HOST="localhost"
+DATABASE_PORT=3306
+-> definir as model do scheema
+ex.:
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User { 
+  id    Int     @id @default(autoincrement()) 
+  email String  @unique
+  name  String?
+  posts Post[]
+} 
+
+model Post { 
+  id        Int     @id @default(autoincrement()) 
+  title     String
+  content   String? @db.Text
+  published Boolean @default(false) 
+  author    User    @relation(fields: [authorId], references: [id]) 
+  authorId  Int
+} 
+-> criar e aplicar primeira migração
+npx prisma migrate dev --name init
+-> rodar comando generate
+npx prisma generate
+-> criar repositório lib na raiz, nela criar prisma.ts e configurar:
+import "dotenv/config";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { PrismaClient } from "../generated/prisma/client";
+
+const adapter = new PrismaMariaDb({
+  host: process.env.DATABASE_HOST,
+  user: process.env.DATABASE_USER,
+  password: process.env.DATABASE_PASSWORD,
+  database: process.env.DATABASE_NAME,
+  connectionLimit: 5,
+});
+const prisma = new PrismaClient({ adapter });
+
+export { prisma };
+-> para testar crie o arquivo script.ts e configure:
+import { prisma } from "./lib/prisma";
+
+async function main() {
+  const user = await prisma.user.create({
+    data: {
+      name: "Alice",
+      email: "alice@prisma.io",
+      posts: {
+        create: {
+          title: "Hello World",
+          content: "This is my first post!",
+          published: true,
+        },
+      },
+    },
+    include: {
+      posts: true,
+    },
+  });
+  console.log("Created user:", user);
+
+  // Fetch all users with their posts
+  const allUsers = await prisma.user.findMany({
+    include: {
+      posts: true,
+    },
+  });
+  console.log("All users:", JSON.stringify(allUsers, null, 2));
+}
+
+main()
+  .then(async () => {
+    await prisma.$disconnect();
+  })
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
+  });
+  -> para testar rode:
+  npx tsx script.ts
+  -> para verificar rode:
+  npx prisma studio
