@@ -1,68 +1,48 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  posts  Post[]
-  carros Carro[]
-  unhas  Unha[]
+  // RBAC relationships
+  roles     Role[]   @relation("UserRoles")
 }
 
-model Post {
-  id        Int     @id @default(autoincrement())
-  title     String
-  content   String? @db.Text
-  published Boolean @default(false)
-
-  author   User @relation(fields: [authorId], references: [id])
-  authorId Int
+model AuditLog {
+  id          String      @id @default(uuid())
+  entity      String
+  entityId    String
+  action      String      // Use String instead of Enum for SQLite
+  oldData     String?     // Use String instead of Json for SQLite
+  newData     String?
+  performedBy String?
+  createdAt   DateTime    @default(now())
 }
 
-model Carro {
-  id     Int    @id @default(autoincrement())
-  nome   String
-  modelo String
-  preco  Int
+// Removed enum AuditAction as it's not supported in SQLite with Prisma 5
 
-  marca   Marcas @relation(fields: [marcaId], references: [id])
-  marcaId Int
-
-  dono   User @relation(fields: [userId], references: [id])
-  userId Int
-
-  @@map("carro")
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  users       User[]       @relation("UserRoles")
+  permissions Permission[] @relation("RolePermissions")
 }
 
-model Unha {
-  id      Int    @id @default(autoincrement())
-  cor     String
-  tamanho String
-  preco   Int
-
-  cliente   User @relation(fields: [userId], references: [id])
-  userId    Int
-
-  @@map("unha")
-}
-
-model Marcas {
-  id              Int      @id @default(autoincrement())
-  nome            String
-  anoModelo       Int
-  anoFabricacao   Int
-  dataCadastro    DateTime @default(now())
-  dataAtualizacao DateTime @updatedAt
-  ativo           Boolean  @default(true)
-
-  carros Carro[]
-
-  @@map("marcas")
+model Permission {
+  id    String @id @default(uuid())
+  name  String @unique
+  roles Role[] @relation("RolePermissions")
 }
